@@ -2,21 +2,50 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flashcard Nhật Ngữ Pro</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
         .container { background: white; width: 320px; padding: 20px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); position: relative; }
-        #word-list { height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; font-size: 14px; }
-        .card { text-align: center; display: none; position: relative; }
+        #word-list { height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; font-size: 14px; text-align: left; }
+        .card { text-align: center; display: none; position: relative; padding-top: 30px; }
         .kanji { font-size: 60px; font-weight: bold; margin-bottom: 5px; }
-        .romaji { font-size: 16px; color: #888; font-style: italic; margin-bottom: 10px; }
+        .kana { font-size: 22px; color: #444; }
+        .romaji { font-size: 16px; color: #888; font-style: italic; margin-bottom: 15px; }
         .speaker-btn { position: absolute; top: 10px; left: 10px; font-size: 24px; cursor: pointer; border: none; background: none; }
         button.action { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 8px; cursor: pointer; color: white; font-weight: bold; }
+
+        /* Splash screen */
+        #splash-screen {
+            position: fixed; inset: 0; background: #007bff;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 999; cursor: pointer;
+        }
+        #splash-screen h1 { color: white; font-size: 28px; margin-bottom: 10px; }
+        #splash-screen p { color: rgba(255,255,255,0.85); font-size: 16px; }
+        #splash-screen .tap-hint { margin-top: 40px; font-size: 40px; animation: pulse 1.5s ease-in-out infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* Voice select */
+        #voice-select {
+            position: absolute; top: 10px; right: 10px;
+            font-size: 12px; padding: 4px 6px;
+            border-radius: 6px; border: 1px solid #ddd;
+            background: #f8f8f8; max-width: 130px;
+        }
     </style>
 </head>
 <body>
 
-<div class="container" id="setup-screen">
+<!-- Splash để unlock iOS audio -->
+<div id="splash-screen" onclick="unlockAudio()">
+    <h1>🇯🇵 Flashcard Nhật Ngữ</h1>
+    <p>Tap để bắt đầu học</p>
+    <div class="tap-hint">👆</div>
+</div>
+
+<div class="container" id="setup-screen" style="display:none;">
     <h3>Chọn từ vựng học hôm nay:</h3>
     <div id="word-list"></div>
     <input type="number" id="batchSize" value="5" style="width: 90%; padding: 10px; margin: 10px 0;">
@@ -25,8 +54,9 @@
 
 <div class="container card" id="learning-screen">
     <button class="speaker-btn" onclick="speakWord()">🔊</button>
+    <select id="voice-select"></select>
     <div class="kanji" id="kanji">---</div>
-    <div id="kana">---</div>
+    <div class="kana" id="kana">---</div>
     <div class="romaji" id="romaji">---</div>
     <div id="mean" style="margin: 15px 0; font-weight: bold; color: #007bff;">---</div>
     <button class="action" style="background: #28a745;" onclick="markLearned()">✅ Đã thuộc</button>
@@ -35,6 +65,7 @@
 
 <script>
     let fullDict = [], activePool = [], learningStack = [], history = [], currentItem = null;
+    let audioUnlocked = false;
 
     fetch('vocabulary.json')
         .then(res => res.json())
@@ -46,10 +77,85 @@
             });
         });
 
+    // ── VOICE ──────────────────────────────────────────────
+    function loadVoices() {
+        const select = document.getElementById('voice-select');
+        const voices = window.speechSynthesis.getVoices();
+        const jaVoices = voices.filter(v => v.lang.startsWith('ja'));
+
+        select.innerHTML = '';
+        if (jaVoices.length === 0) {
+            select.innerHTML = '<option>Chưa có giọng JP</option>';
+            return;
+        }
+
+        jaVoices.forEach((v, i) => {
+            const opt = document.createElement('option');
+            opt.value = i;
+            const isKyoko = v.name.toLowerCase().includes('kyoko');
+            const isOren  = v.name.toLowerCase().includes('o-ren');
+            const gender  = (isKyoko || isOren) ? '♀' : '♂';
+            const cleanName = v.name.replace('com.apple.voice.compact.ja-JP.', '').replace('com.apple.ttsbundle.', '');
+            opt.textContent = `${gender} ${cleanName}`;
+            // Tự động chọn giọng nữ nếu có
+            if (isKyoko || isOren) opt.selected = true;
+            select.appendChild(opt);
+        });
+    }
+
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+
+    // ── AUDIO UNLOCK (iOS) ─────────────────────────────────
+    function unlockAudio() {
+        const utterance = new SpeechSynthesisUtterance('');
+        utterance.lang = 'ja-JP';
+        utterance.volume = 0;
+        window.speechSynthesis.speak(utterance);
+        audioUnlocked = true;
+
+        // Load voices ngay sau khi unlock (iOS cần gesture trước)
+        loadVoices();
+
+        document.getElementById('splash-screen').style.display = 'none';
+        document.getElementById('setup-screen').style.display = 'block';
+    }
+
+    // ── SPEAK ──────────────────────────────────────────────
+    function speakWord() {
+        const text = document.getElementById('kana').innerText;
+        if (!text || text === '---') return;
+
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ja-JP';
+        utterance.rate = 1.0;
+
+        const select = document.getElementById('voice-select');
+        const jaVoices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('ja'));
+        const selectedIndex = parseInt(select.value);
+        if (jaVoices[selectedIndex]) {
+            utterance.voice = jaVoices[selectedIndex];
+        }
+
+        window.speechSynthesis.speak(utterance);
+    }
+
+    // iOS bug: speechSynthesis đơ sau vài phút
+    setInterval(() => {
+        if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.pause();
+            window.speechSynthesis.resume();
+        }
+    }, 10000);
+
+    // ── LEARNING LOGIC ─────────────────────────────────────
     function startLearning() {
         const selected = Array.from(document.querySelectorAll('#word-list input:checked')).map(cb => cb.value);
         activePool = fullDict.filter(w => selected.includes(w.kanji));
-        if(activePool.length === 0) return alert("Chọn ít nhất 1 từ!");
+        if (activePool.length === 0) return alert("Chọn ít nhất 1 từ!");
         document.getElementById('setup-screen').style.display = 'none';
         document.getElementById('learning-screen').style.display = 'block';
         nextBatch();
@@ -59,7 +165,7 @@
         let batchSize = parseInt(document.getElementById('batchSize').value);
         let newBatch = activePool.splice(0, batchSize);
         learningStack = [...newBatch, ...history.slice(-batchSize)];
-        if (newBatch.length === 0 && learningStack.length === 0) return alert("Hết từ!");
+        if (newBatch.length === 0 && learningStack.length === 0) return alert("Hết từ rồi!");
         showCard();
     }
 
@@ -69,16 +175,7 @@
         document.getElementById('kana').innerText = currentItem.kana;
         document.getElementById('romaji').innerText = currentItem.romaji;
         document.getElementById('mean').innerText = currentItem.mean;
-        
-        // Tự động phát âm khi mở thẻ
         speakWord();
-    }
-
-    function speakWord() {
-        const text = document.getElementById('kana').innerText;
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'ja-JP';
-        window.speechSynthesis.speak(utterance);
     }
 
     function markLearned() {
