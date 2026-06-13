@@ -4,187 +4,494 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flashcard Nhật Ngữ Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .container { background: white; width: 320px; padding: 20px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); position: relative; }
-        #word-list { height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; font-size: 14px; text-align: left; }
-        .card { text-align: center; display: none; position: relative; padding-top: 30px; }
-        .kanji { font-size: 60px; font-weight: bold; margin-bottom: 5px; }
-        .kana { font-size: 22px; color: #444; }
-        .romaji { font-size: 16px; color: #888; font-style: italic; margin-bottom: 15px; }
-        .speaker-btn { position: absolute; top: 10px; left: 10px; font-size: 24px; cursor: pointer; border: none; background: none; }
-        button.action { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 8px; cursor: pointer; color: white; font-weight: bold; }
+        * { box-sizing: border-box; }
 
-        /* Splash screen */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f0f2f5;
+            display: flex; flex-direction: column; align-items: center;
+            padding: 20px; min-height: 100vh; margin: 0;
+        }
+
+        /* ── SPLASH ─────────────────────────────────── */
         #splash-screen {
             position: fixed; inset: 0; background: #007bff;
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
-            z-index: 999; cursor: pointer;
+            z-index: 999; cursor: pointer; user-select: none;
         }
-        #splash-screen h1 { color: white; font-size: 28px; margin-bottom: 10px; }
-        #splash-screen p { color: rgba(255,255,255,0.85); font-size: 16px; }
+        #splash-screen h1  { color: white; font-size: 28px; margin-bottom: 10px; }
+        #splash-screen p   { color: rgba(255,255,255,0.85); font-size: 16px; }
         #splash-screen .tap-hint { margin-top: 40px; font-size: 40px; animation: pulse 1.5s ease-in-out infinite; }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-        /* Voice select */
+        /* ── CONTAINER ──────────────────────────────── */
+        .container {
+            background: white; width: 340px; padding: 20px;
+            border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        #word-list {
+            height: 150px; overflow-y: auto; border: 1px solid #ddd;
+            padding: 10px; margin: 10px 0; font-size: 14px; text-align: left;
+            border-radius: 8px;
+        }
+        button.action {
+            width: 100%; padding: 12px; margin-top: 10px;
+            border: none; border-radius: 8px; cursor: pointer;
+            color: white; font-weight: bold; font-size: 15px;
+        }
+
+        /* ── LEARNING CARD ──────────────────────────── */
+        .card { text-align: center; display: none; position: relative; padding-top: 38px; }
+
+        #swipe-hint-left, #swipe-hint-right {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            font-size: 44px; opacity: 0; pointer-events: none;
+            transition: opacity 0.1s; z-index: 10;
+        }
+        #swipe-hint-left  { left: -8px; }
+        #swipe-hint-right { right: -8px; }
+
+        .speaker-btn {
+            position: absolute; top: 8px; left: 10px;
+            font-size: 24px; cursor: pointer; border: none; background: none; padding: 0;
+        }
         #voice-select {
             position: absolute; top: 10px; right: 10px;
-            font-size: 12px; padding: 4px 6px;
-            border-radius: 6px; border: 1px solid #ddd;
-            background: #f8f8f8; max-width: 130px;
+            font-size: 11px; padding: 3px 5px; border-radius: 6px;
+            border: 1px solid #ddd; background: #f8f8f8; max-width: 120px;
         }
+
+        .kanji  { font-size: 64px; font-weight: bold; margin-bottom: 4px; line-height: 1.1; }
+        .kana   { font-size: 22px; color: #444; }
+        .romaji { font-size: 15px; color: #999; font-style: italic; margin-bottom: 8px; }
+        #mean   { margin: 8px 0 6px; font-weight: bold; color: #007bff; font-size: 16px; }
+
+        .swipe-instruction {
+            font-size: 11px; color: #ccc; margin: 4px 0 10px;
+            display: flex; justify-content: center; gap: 18px;
+        }
+
+        /* ── STROKE SECTION ─────────────────────────── */
+        #stroke-section { margin-top: 6px; }
+        #stroke-container { display: none; margin-top: 12px; }
+
+        /* Từng block kanji */
+        .stroke-char-block {
+            margin-bottom: 20px;
+            border: 1px solid #eee;
+            border-radius: 14px;
+            padding: 14px 12px 10px;
+            background: #fafafa;
+        }
+
+        /* Dòng info: 水 | 水·Thủy·Nước  氵·Thủy·Nước */
+        .stroke-info-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 6px;
+            margin-bottom: 10px;
+            text-align: left;
+        }
+        .stroke-kanji-big {
+            font-size: 36px;
+            font-weight: bold;
+            line-height: 1;
+            margin-right: 4px;
+            flex-shrink: 0;
+        }
+        .radical-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            justify-content: center;
+        }
+        .radical-item {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            flex-wrap: wrap;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .radical-char {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-right: 4px;
+        }
+        .radical-hanviet {
+            color: #c0392b;
+            font-weight: 600;
+            margin-right: 3px;
+        }
+        .radical-sep {
+            color: #bbb;
+            margin: 0 3px;
+        }
+        .radical-meaning {
+            color: #666;
+        }
+        .radical-unknown {
+            font-size: 12px;
+            color: #bbb;
+            font-style: italic;
+        }
+
+        /* Canvas căn giữa */
+        .stroke-canvas-center {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 8px;
+        }
+        .stroke-canvas-wrap {
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 4px;
+            background: white;
+            display: inline-block;
+        }
+
+        /* Controls riêng cho từng kanji */
+        .char-controls {
+            display: flex; gap: 5px; justify-content: center; flex-wrap: wrap;
+            margin-top: 6px;
+        }
+        .char-controls button {
+            padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+            border: 1px solid #6f42c1; color: #6f42c1; background: white;
+            transition: background 0.15s, color 0.15s;
+        }
+        .char-controls button:active { background: #6f42c1; color: white; }
+        .char-controls button.stop-btn { border-color: #28a745; color: #28a745; }
+        .char-controls button.stop-btn:active { background: #28a745; color: white; }
+
+        .stroke-error { color: #bbb; font-size: 12px; margin-top: 6px; text-align: center; }
+
+        /* Swipe animation */
+        .card-swipe-left  { animation: swipeLeft  0.28s ease forwards; }
+        .card-swipe-right { animation: swipeRight 0.28s ease forwards; }
+        @keyframes swipeLeft  { to { transform: translateX(-130%) rotate(-10deg); opacity: 0; } }
+        @keyframes swipeRight { to { transform: translateX( 130%) rotate( 10deg); opacity: 0; } }
     </style>
 </head>
 <body>
 
-<!-- Splash để unlock iOS audio -->
+<!-- SPLASH -->
 <div id="splash-screen" onclick="unlockAudio()">
     <h1>🇯🇵 Flashcard Nhật Ngữ</h1>
     <p>Tap để bắt đầu học</p>
     <div class="tap-hint">👆</div>
 </div>
 
+<!-- SETUP -->
 <div class="container" id="setup-screen" style="display:none;">
     <h3>Chọn từ vựng học hôm nay:</h3>
     <div id="word-list"></div>
-    <input type="number" id="batchSize" value="5" style="width: 90%; padding: 10px; margin: 10px 0;">
-    <button class="action" style="background: #007bff;" onclick="startLearning()">Bắt đầu học</button>
+    <input type="number" id="batchSize" value="5"
+        style="width:90%;padding:10px;margin:10px 0;border-radius:8px;border:1px solid #ddd;">
+    <button class="action" style="background:#007bff;" onclick="startLearning()">Bắt đầu học</button>
 </div>
 
+<!-- LEARNING CARD -->
 <div class="container card" id="learning-screen">
+    <div id="swipe-hint-left">❌</div>
+    <div id="swipe-hint-right">✅</div>
+
     <button class="speaker-btn" onclick="speakWord()">🔊</button>
     <select id="voice-select"></select>
-    <div class="kanji" id="kanji">---</div>
-    <div class="kana" id="kana">---</div>
+
+    <div class="kanji"  id="kanji">---</div>
+    <div class="kana"   id="kana">---</div>
     <div class="romaji" id="romaji">---</div>
-    <div id="mean" style="margin: 15px 0; font-weight: bold; color: #007bff;">---</div>
-    <button class="action" style="background: #28a745;" onclick="markLearned()">✅ Đã thuộc</button>
-    <button class="action" style="background: #dc3545;" onclick="markNeedPractice()">❌ Cần xem lại</button>
+    <div id="mean">---</div>
+
+    <div class="swipe-instruction">
+        <span>👈 Cần xem lại</span>
+        <span>Đã thuộc 👉</span>
+    </div>
+
+    <!-- STROKE -->
+    <div id="stroke-section">
+        <button class="action" style="background:#6f42c1;" onclick="toggleStroke()">
+            ✏️ Xem thứ tự nét
+        </button>
+        <div id="stroke-container">
+            <div id="stroke-chars"></div>
+        </div>
+    </div>
+
+    <button class="action" style="background:#28a745;margin-top:12px;" onclick="markLearned()">✅ Đã thuộc</button>
+    <button class="action" style="background:#dc3545;" onclick="markNeedPractice()">❌ Cần xem lại</button>
 </div>
 
 <script>
-    let fullDict = [], activePool = [], learningStack = [], history = [], currentItem = null;
-    let audioUnlocked = false;
+// ── STATE ─────────────────────────────────────────────────────
+let fullDict = [], activePool = [], learningStack = [], history = [], currentItem = null;
+let audioUnlocked = false;
+let writerInstances = [];   // [{ writer, charIndex }]
+let strokeVisible   = false;
+let RADICALS        = {};   // loaded from radicals.json
 
-    fetch('vocabulary.json')
-        .then(res => res.json())
-        .then(data => {
-            fullDict = data;
-            const listDiv = document.getElementById('word-list');
-            fullDict.forEach(word => {
-                listDiv.innerHTML += `<div><input type="checkbox" checked value="${word.kanji}"> ${word.kanji} (${word.mean})</div>`;
-            });
+// ── LOAD DATA ─────────────────────────────────────────────────
+Promise.all([
+    fetch('vocabulary.json').then(r => r.json()),
+    fetch('radicals.json').then(r => r.json())
+]).then(([vocab, radicals]) => {
+    fullDict = vocab;
+    RADICALS = radicals;
+    const listDiv = document.getElementById('word-list');
+    fullDict.forEach(word => {
+        listDiv.innerHTML += `<div><input type="checkbox" checked value="${word.kanji}"> ${word.kanji} — ${word.mean}</div>`;
+    });
+}).catch(() => {
+    // fallback nếu chạy offline không có server: chỉ load vocab
+    fetch('vocabulary.json').then(r => r.json()).then(data => {
+        fullDict = data;
+        const listDiv = document.getElementById('word-list');
+        fullDict.forEach(word => {
+            listDiv.innerHTML += `<div><input type="checkbox" checked value="${word.kanji}"> ${word.kanji} — ${word.mean}</div>`;
         });
+    });
+});
 
-    // ── VOICE ──────────────────────────────────────────────
-    function loadVoices() {
-        const select = document.getElementById('voice-select');
-        const voices = window.speechSynthesis.getVoices();
-        const jaVoices = voices.filter(v => v.lang.startsWith('ja'));
+// ── VOICE ─────────────────────────────────────────────────────
+function loadVoices() {
+    const sel = document.getElementById('voice-select');
+    const jaVoices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('ja'));
+    sel.innerHTML = '';
+    if (!jaVoices.length) { sel.innerHTML = '<option>Chưa có giọng JP</option>'; return; }
+    jaVoices.forEach((v, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        const isF = /kyoko|o-ren/i.test(v.name);
+        opt.textContent = `${isF ? '♀' : '♂'} ${v.name.replace(/com\.apple\.(voice\.compact\.ja-JP\.|ttsbundle\.)/g, '')}`;
+        if (isF) opt.selected = true;
+        sel.appendChild(opt);
+    });
+}
+window.speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
 
-        select.innerHTML = '';
-        if (jaVoices.length === 0) {
-            select.innerHTML = '<option>Chưa có giọng JP</option>';
-            return;
-        }
-
-        jaVoices.forEach((v, i) => {
-            const opt = document.createElement('option');
-            opt.value = i;
-            const isKyoko = v.name.toLowerCase().includes('kyoko');
-            const isOren  = v.name.toLowerCase().includes('o-ren');
-            const gender  = (isKyoko || isOren) ? '♀' : '♂';
-            const cleanName = v.name.replace('com.apple.voice.compact.ja-JP.', '').replace('com.apple.ttsbundle.', '');
-            opt.textContent = `${gender} ${cleanName}`;
-            // Tự động chọn giọng nữ nếu có
-            if (isKyoko || isOren) opt.selected = true;
-            select.appendChild(opt);
-        });
-    }
-
-    window.speechSynthesis.onvoiceschanged = loadVoices;
+// ── UNLOCK AUDIO (iOS) ────────────────────────────────────────
+function unlockAudio() {
+    const u = new SpeechSynthesisUtterance('');
+    u.lang = 'ja-JP'; u.volume = 0;
+    window.speechSynthesis.speak(u);
+    audioUnlocked = true;
     loadVoices();
+    document.getElementById('splash-screen').style.display = 'none';
+    document.getElementById('setup-screen').style.display  = 'block';
+}
 
-    // ── AUDIO UNLOCK (iOS) ─────────────────────────────────
-    function unlockAudio() {
-        const utterance = new SpeechSynthesisUtterance('');
-        utterance.lang = 'ja-JP';
-        utterance.volume = 0;
-        window.speechSynthesis.speak(utterance);
-        audioUnlocked = true;
+// ── SPEAK ─────────────────────────────────────────────────────
+function speakWord() {
+    const text = document.getElementById('kana').innerText;
+    if (!text || text === '---') return;
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP'; u.rate = 1.0;
+    const jaVoices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('ja'));
+    const idx = parseInt(document.getElementById('voice-select').value);
+    if (jaVoices[idx]) u.voice = jaVoices[idx];
+    window.speechSynthesis.speak(u);
+}
+setInterval(() => {
+    if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+    }
+}, 10000);
 
-        // Load voices ngay sau khi unlock (iOS cần gesture trước)
-        loadVoices();
+// ── SWIPE ─────────────────────────────────────────────────────
+let touchStartX = 0, touchStartY = 0;
+const SWIPE_THRESHOLD = 60;
+const card = document.getElementById('learning-screen');
 
-        document.getElementById('splash-screen').style.display = 'none';
-        document.getElementById('setup-screen').style.display = 'block';
+card.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+card.addEventListener('touchmove', e => {
+    const dx = e.touches[0].clientX - touchStartX;
+    const dy = e.touches[0].clientY - touchStartY;
+    if (Math.abs(dx) < Math.abs(dy)) return;
+    const p = Math.min(Math.abs(dx) / 150, 1);
+    document.getElementById('swipe-hint-right').style.opacity = dx > 20  ? p : 0;
+    document.getElementById('swipe-hint-left').style.opacity  = dx < -20 ? p : 0;
+}, { passive: true });
+
+card.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    document.getElementById('swipe-hint-left').style.opacity  = 0;
+    document.getElementById('swipe-hint-right').style.opacity = 0;
+    if (Math.abs(dy) > Math.abs(dx) || Math.abs(dx) < SWIPE_THRESHOLD) return;
+    if (dx > 0) {
+        card.classList.add('card-swipe-right');
+        setTimeout(() => { card.classList.remove('card-swipe-right'); markLearned(); }, 280);
+    } else {
+        card.classList.add('card-swipe-left');
+        setTimeout(() => { card.classList.remove('card-swipe-left'); markNeedPractice(); }, 280);
+    }
+});
+
+// ── RADICAL HELPERS ───────────────────────────────────────────
+function getKanjiChars(str) {
+    return [...str].filter(c => {
+        const cp = c.codePointAt(0);
+        return (cp >= 0x4E00 && cp <= 0x9FFF) || (cp >= 0x3400 && cp <= 0x4DBF);
+    });
+}
+
+function buildRadicalHTML(char) {
+    const info = RADICALS[char];
+    if (!info) {
+        return `<span class="radical-unknown">Không có dữ liệu bộ thủ</span>`;
+    }
+    // Một kanji có thể có 1 bộ thủ chính — hiển thị đẹp
+    return `
+        <div class="radical-item">
+            <span class="radical-char">${info.radical}</span>
+            <span class="radical-hanviet">${info.hanviet}</span>
+            <span class="radical-sep">·</span>
+            <span class="radical-meaning">${info.meaning}</span>
+        </div>
+    `;
+}
+
+// ── STROKE ORDER ──────────────────────────────────────────────
+function toggleStroke() {
+    strokeVisible = !strokeVisible;
+    document.getElementById('stroke-container').style.display = strokeVisible ? 'block' : 'none';
+    if (strokeVisible) renderAllStrokes(currentItem.kanji);
+}
+
+function renderAllStrokes(kanjiStr) {
+    const charsDiv = document.getElementById('stroke-chars');
+    charsDiv.innerHTML = '';
+    writerInstances = [];
+
+    const chars = getKanjiChars(kanjiStr);
+    if (!chars.length) {
+        charsDiv.innerHTML = '<div class="stroke-error">⚠️ Không tìm thấy kanji</div>';
+        return;
     }
 
-    // ── SPEAK ──────────────────────────────────────────────
-    function speakWord() {
-        const text = document.getElementById('kana').innerText;
-        if (!text || text === '---') return;
+    // Tạo block cho từng kanji, animate tuần tự
+    chars.forEach((char, idx) => {
+        const canvasId = `kc-${idx}`;
+        const errorId  = `ke-${idx}`;
 
-        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-        window.speechSynthesis.cancel();
+        const block = document.createElement('div');
+        block.className = 'stroke-char-block';
+        block.innerHTML = `
+            <div class="stroke-info-row">
+                <div class="stroke-kanji-big">${char}</div>
+                <div class="radical-list">${buildRadicalHTML(char)}</div>
+            </div>
+            <div class="stroke-canvas-center">
+                <div class="stroke-canvas-wrap">
+                    <div id="${canvasId}"></div>
+                </div>
+            </div>
+            <div class="stroke-error" id="${errorId}" style="display:none;">⚠️ Không có dữ liệu nét</div>
+            <div class="char-controls">
+                <button onclick="writerInstances[${idx}] && writerInstances[${idx}].animateCharacter()">▶ Animate</button>
+                <button onclick="writerInstances[${idx}] && writerInstances[${idx}].loopCharacterAnimation()">🔁 Loop</button>
+                <button class="stop-btn" onclick="writerInstances[${idx}] && writerInstances[${idx}].stopAnimation()">⏹ Stop</button>
+            </div>
+        `;
+        charsDiv.appendChild(block);
+    });
 
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'ja-JP';
-        utterance.rate = 1.0;
+    // Animate tuần tự: chữ 1 xong → chữ 2 → chữ 3...
+    animateSequential(chars, 0);
+}
 
-        const select = document.getElementById('voice-select');
-        const jaVoices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('ja'));
-        const selectedIndex = parseInt(select.value);
-        if (jaVoices[selectedIndex]) {
-            utterance.voice = jaVoices[selectedIndex];
+function animateSequential(chars, idx) {
+    if (idx >= chars.length) return;
+
+    const char     = chars[idx];
+    const canvasId = `kc-${idx}`;
+    const errorId  = `ke-${idx}`;
+
+    const writer = HanziWriter.create(canvasId, char, {
+        width: 180,
+        height: 180,
+        padding: 10,
+        showOutline: true,
+        strokeAnimationSpeed: 1,
+        delayBetweenStrokes: 250,
+        strokeColor: '#2c3e50',
+        outlineColor: '#ddd',
+        onLoadCharDataError: () => {
+            document.getElementById(errorId).style.display = 'block';
+            document.getElementById(canvasId).innerHTML = '';
+            // Vẫn tiếp tục chữ tiếp theo
+            writerInstances[idx] = null;
+            animateSequential(chars, idx + 1);
         }
+    });
 
-        window.speechSynthesis.speak(utterance);
-    }
+    writerInstances[idx] = writer;
 
-    // iOS bug: speechSynthesis đơ sau vài phút
-    setInterval(() => {
-        if (window.speechSynthesis.speaking) {
-            window.speechSynthesis.pause();
-            window.speechSynthesis.resume();
+    // Sau khi animate xong → chạy chữ tiếp theo
+    writer.animateCharacter({
+        onComplete: () => {
+            // Delay nhỏ giữa các chữ cho dễ nhìn
+            setTimeout(() => animateSequential(chars, idx + 1), 400);
         }
-    }, 10000);
+    });
+}
 
-    // ── LEARNING LOGIC ─────────────────────────────────────
-    function startLearning() {
-        const selected = Array.from(document.querySelectorAll('#word-list input:checked')).map(cb => cb.value);
-        activePool = fullDict.filter(w => selected.includes(w.kanji));
-        if (activePool.length === 0) return alert("Chọn ít nhất 1 từ!");
-        document.getElementById('setup-screen').style.display = 'none';
-        document.getElementById('learning-screen').style.display = 'block';
-        nextBatch();
-    }
+// ── LEARNING LOGIC ────────────────────────────────────────────
+function startLearning() {
+    const selected = Array.from(document.querySelectorAll('#word-list input:checked')).map(cb => cb.value);
+    activePool = fullDict.filter(w => selected.includes(w.kanji));
+    if (!activePool.length) return alert('Chọn ít nhất 1 từ!');
+    document.getElementById('setup-screen').style.display   = 'none';
+    document.getElementById('learning-screen').style.display = 'block';
+    nextBatch();
+}
 
-    function nextBatch() {
-        let batchSize = parseInt(document.getElementById('batchSize').value);
-        let newBatch = activePool.splice(0, batchSize);
-        learningStack = [...newBatch, ...history.slice(-batchSize)];
-        if (newBatch.length === 0 && learningStack.length === 0) return alert("Hết từ rồi!");
-        showCard();
-    }
+function nextBatch() {
+    const batchSize = parseInt(document.getElementById('batchSize').value);
+    const newBatch  = activePool.splice(0, batchSize);
+    learningStack   = [...newBatch, ...history.slice(-batchSize)];
+    if (!newBatch.length && !learningStack.length) return alert('Hết từ rồi!');
+    showCard();
+}
 
-    function showCard() {
-        currentItem = learningStack[Math.floor(Math.random() * learningStack.length)];
-        document.getElementById('kanji').innerText = currentItem.kanji;
-        document.getElementById('kana').innerText = currentItem.kana;
-        document.getElementById('romaji').innerText = currentItem.romaji;
-        document.getElementById('mean').innerText = currentItem.mean;
-        speakWord();
-    }
+function showCard() {
+    currentItem = learningStack[Math.floor(Math.random() * learningStack.length)];
+    document.getElementById('kanji').innerText  = currentItem.kanji;
+    document.getElementById('kana').innerText   = currentItem.kana;
+    document.getElementById('romaji').innerText = currentItem.romaji;
+    document.getElementById('mean').innerText   = currentItem.mean;
 
-    function markLearned() {
-        learningStack = learningStack.filter(item => item.kanji !== currentItem.kanji);
-        if (!history.includes(currentItem)) history.push(currentItem);
-        learningStack.length === 0 ? nextBatch() : showCard();
-    }
+    // Reset stroke
+    strokeVisible = false;
+    document.getElementById('stroke-container').style.display = 'none';
+    document.getElementById('stroke-chars').innerHTML = '';
+    writerInstances = [];
 
-    function markNeedPractice() { showCard(); }
+    speakWord();
+}
+
+function markLearned() {
+    learningStack = learningStack.filter(i => i.kanji !== currentItem.kanji);
+    if (!history.includes(currentItem)) history.push(currentItem);
+    learningStack.length === 0 ? nextBatch() : showCard();
+}
+
+function markNeedPractice() { showCard(); }
 </script>
 </body>
 </html>
