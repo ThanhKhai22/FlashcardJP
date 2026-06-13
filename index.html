@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Flashcard Nhật Ngữ Pro</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { background: white; width: 320px; padding: 20px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); position: relative; }
+        #word-list { height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; font-size: 14px; }
+        .card { text-align: center; display: none; position: relative; }
+        .kanji { font-size: 60px; font-weight: bold; margin-bottom: 5px; }
+        .romaji { font-size: 16px; color: #888; font-style: italic; margin-bottom: 10px; }
+        .speaker-btn { position: absolute; top: 10px; left: 10px; font-size: 24px; cursor: pointer; border: none; background: none; }
+        button.action { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 8px; cursor: pointer; color: white; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="setup-screen">
+    <h3>Chọn từ vựng học hôm nay:</h3>
+    <div id="word-list"></div>
+    <input type="number" id="batchSize" value="5" style="width: 90%; padding: 10px; margin: 10px 0;">
+    <button class="action" style="background: #007bff;" onclick="startLearning()">Bắt đầu học</button>
+</div>
+
+<div class="container card" id="learning-screen">
+    <button class="speaker-btn" onclick="speakWord()">🔊</button>
+    <div class="kanji" id="kanji">---</div>
+    <div id="kana">---</div>
+    <div class="romaji" id="romaji">---</div>
+    <div id="mean" style="margin: 15px 0; font-weight: bold; color: #007bff;">---</div>
+    <button class="action" style="background: #28a745;" onclick="markLearned()">✅ Đã thuộc</button>
+    <button class="action" style="background: #dc3545;" onclick="markNeedPractice()">❌ Cần xem lại</button>
+</div>
+
+<script>
+    let fullDict = [], activePool = [], learningStack = [], history = [], currentItem = null;
+
+    fetch('vocabulary.json')
+        .then(res => res.json())
+        .then(data => {
+            fullDict = data;
+            const listDiv = document.getElementById('word-list');
+            fullDict.forEach(word => {
+                listDiv.innerHTML += `<div><input type="checkbox" checked value="${word.kanji}"> ${word.kanji} (${word.mean})</div>`;
+            });
+        });
+
+    function startLearning() {
+        const selected = Array.from(document.querySelectorAll('#word-list input:checked')).map(cb => cb.value);
+        activePool = fullDict.filter(w => selected.includes(w.kanji));
+        if(activePool.length === 0) return alert("Chọn ít nhất 1 từ!");
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('learning-screen').style.display = 'block';
+        nextBatch();
+    }
+
+    function nextBatch() {
+        let batchSize = parseInt(document.getElementById('batchSize').value);
+        let newBatch = activePool.splice(0, batchSize);
+        learningStack = [...newBatch, ...history.slice(-batchSize)];
+        if (newBatch.length === 0 && learningStack.length === 0) return alert("Hết từ!");
+        showCard();
+    }
+
+    function showCard() {
+        currentItem = learningStack[Math.floor(Math.random() * learningStack.length)];
+        document.getElementById('kanji').innerText = currentItem.kanji;
+        document.getElementById('kana').innerText = currentItem.kana;
+        document.getElementById('romaji').innerText = currentItem.romaji;
+        document.getElementById('mean').innerText = currentItem.mean;
+        
+        // Tự động phát âm khi mở thẻ
+        speakWord();
+    }
+
+    function speakWord() {
+        const text = document.getElementById('kana').innerText;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ja-JP';
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function markLearned() {
+        learningStack = learningStack.filter(item => item.kanji !== currentItem.kanji);
+        if (!history.includes(currentItem)) history.push(currentItem);
+        learningStack.length === 0 ? nextBatch() : showCard();
+    }
+
+    function markNeedPractice() { showCard(); }
+</script>
+</body>
+</html>
